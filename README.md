@@ -2,7 +2,7 @@
 
 Speech recognition works well for American and British English, but much worse for African accents, and worst of all on medical vocabulary. This project measures how badly OpenAI's Whisper Small transcribes Nigerian-accented English (Hausa, Igbo and Yoruba accents), in clinical and general speech, and how much fine-tuning on 15 hours of Nigerian-accented speech improves it.
 
-**Result:** fine-tuning cut the word error rate from **33.1% to 20.7%** (about 37% fewer errors) on a held-out test set of 1,185 clips from speakers never seen in training. Every accent and domain improved, but clinical speech remains clearly harder than general speech.
+**Result:** fine-tuning cut the word error rate from **33.1% to 20.7%** (an improvement of 12.5 points, 95% CI 11.2–13.8) on a held-out test set of 1,185 clips from speakers never seen in training. Every accent and domain improved. The fine-tuned model also slightly outperforms the off-the-shelf **Whisper Large-v3**, a model about six times its size (20.7% vs 22.1%). Clinical speech remains harder than general speech.
 
 ![Word error rate before and after fine-tuning](results/wer_before_after.png)
 
@@ -51,6 +51,8 @@ The fine-tuned model learned the convention (it wrote "full stop" in only 1 clip
 | Whisper Small (before) | 37.7% | 33.1% |
 | Fine-tuned (after) | **20.7%** | **20.7%** |
 
+Improvement in adjusted WER: **12.5 points (95% CI 11.2–13.8)**, from a paired bootstrap over test clips (2,000 resamples).
+
 Of the 17-point drop in raw WER, about 4.6 points came from learning the spoken-punctuation convention and about 12.4 points from better recognition of the speech itself.
 
 **By accent and domain (adjusted WER)**
@@ -64,6 +66,8 @@ Of the 17-point drop in raw WER, about 4.6 points came from learning the spoken-
 | Yoruba | Clinical | 40.5% | 25.4% | −15.1 |
 | Yoruba | General | 29.5% | 17.5% | −12.0 |
 
+The improvement is statistically clear in every group: the lower end of the 95% confidence interval for the gain is at least 5.9 points in all six. Full intervals are in `results/wer_confidence_intervals.csv`. Per-group estimates are less precise than the overall figure; Hausa clinical, for example, rests on 137 clips.
+
 **Training progress (dev set)**
 
 | Epoch | Training loss | Dev loss | Dev WER |
@@ -74,9 +78,24 @@ Of the 17-point drop in raw WER, about 4.6 points came from learning the spoken-
 
 Most of the gain came in the first epoch. Dev loss stopped improving after epoch 2 while training loss kept falling, an early sign of overfitting, so more epochs are unlikely to help. More data is the more promising route.
 
+## Is a bigger model enough? Fine-tuned Small vs off-the-shelf Large-v3
+
+A natural alternative to fine-tuning is to use the largest available model as it is. Whisper Large-v3 (1.55B parameters, about six times the size of Small) was evaluated on the same test set without fine-tuning.
+
+| Model | Parameters | Raw WER | Adjusted WER |
+|---|---:|---:|---:|
+| Whisper Small (off-the-shelf) | 244M | 37.7% | 33.1% |
+| Whisper Large-v3 (off-the-shelf) | 1.55B | 27.2% | 22.1% |
+| Whisper Small (fine-tuned) | 244M | **20.7%** | **20.7%** |
+
+- **The spoken-punctuation correction matters even more here.** Large-v3 wrote out "full stop" in 401 of 1,184 test clips. On raw WER it appears 6.5 points worse than the fine-tuned model; after correction the gap is **1.4 points (95% CI 0.5–2.3)**. Without the correction, the comparison would have substantially overstated the benefit of fine-tuning.
+- **Overall, the fine-tuned Small model is modestly but reliably more accurate** than a model six times larger, which makes it cheaper and faster to deploy at similar or better accuracy.
+- **Per group, the difference is only clear for Yoruba general speech** (gap 2.2, 95% CI 0.9–3.5). In the other five groups the confidence intervals include zero, so the two models cannot be separated there.
+- **The models make different kinds of errors.** On the 14 clinical terms analysed below, both miss about the same number (19 for fine-tuned Small, 20 for Large-v3), but not the same words: Large-v3 is better on technical terms such as *abdomen*, *hernia* and *artery*, and got "jugular foramen" right, while the fine-tuned model is better on common words spoken with Nigerian accents, such as *infant* and *weaned*. This suggests fine-tuning a larger model could combine both strengths.
+
 ## Error analysis
 
-**Clinical speech remains the weak spot.** After fine-tuning, clinical WER is still 1.3–2.7 times general WER for every accent (Hausa: 28.6% vs 10.5%).
+**Clinical speech remains the weak spot.** After fine-tuning, clinical WER is higher than general WER for every accent (Hausa: 28.6% vs 10.5%). The confidence intervals clearly separate clinical from general speech for Hausa and Yoruba speakers; for Igbo the test set is too small to tell.
 
 **Medical terms.** For 14 clinical words the original model frequently missed (such as *murmur*, *hernia*, *catheter*, *infarction*, *sepsis* and *parenteral*), misses fell from 40 of 56 occurrences to 19. Words such as *parenteral*, *lumbar* and *portal* went from mostly missed to never missed. Not every term improved: *abdomen* got slightly worse (3 to 4 misses) and *discharge* was unchanged. Because these words were selected for being missed by the original model, and each appears only 3–8 times, this analysis is illustrative rather than conclusive.
 
@@ -91,16 +110,17 @@ Most of the gain came in the first epoch. Dev loss stopped improving after epoch
 ## Limitations
 
 - **Read speech, not real dictation.** AfriSpeech consists of sentences read aloud. Real clinical dictation is spontaneous and noisier, so real-world error rates are likely higher.
-- **Small per-group test sets.** The Hausa test set has 189 clips, so per-group figures are less precise than the overall figure. No confidence intervals are reported.
-- **One model size and one training configuration.** Larger Whisper models and other settings were not tested.
+- **Small per-group test sets.** The Hausa test set has 189 clips, so per-group figures are less precise than the overall figure.
+- **Confidence intervals resample clips, not speakers.** Several test clips often come from the same speaker, so the true intervals are probably somewhat wider than reported.
+- **One training configuration.** Only Whisper Small was fine-tuned, with one set of hyperparameters; larger models were evaluated off-the-shelf only.
 - **Joined words in some references.** 40 of 1,184 test references contain words joined together (such as hashtags like "BBNaijaReunion"), which cannot be transcribed exactly. Excluding them changes the baseline adjusted WER by about 1 point.
 - **Three accents only.** Results may not generalise to other Nigerian or African accents.
 
 ## Future work
 
 - Train on more clinical speech, the main remaining weakness
-- Compare larger Whisper models (medium, large)
-- Add bootstrap confidence intervals and speaker-level analysis
+- Fine-tune a larger model (Medium or Large-v3), which may combine Large-v3's medical vocabulary with the fine-tuned model's accent robustness
+- Speaker-level bootstrap and per-speaker error analysis
 - Evaluate on spontaneous clinical conversation, such as AfriSpeech-Dialog
 
 ## Repository structure
@@ -116,10 +136,14 @@ Most of the gain came in the first epoch. Dev loss stopped improving after epoch
 │   ├── 02_explore_data.ipynb   # clip counts, speaker-overlap check, subset creation
 │   ├── 03_baseline.ipynb       # Whisper Small evaluation (Kaggle GPU)
 │   ├── 04_finetune.ipynb       # fine-tuning and final test evaluation (Kaggle GPU)
-│   └── 05_error_analysis.ipynb # raw vs adjusted WER, medical terms, chart
+│   ├── 05_error_analysis.ipynb # raw vs adjusted WER, confidence intervals, medical terms, chart
+│   └── 06_large_v3.ipynb       # off-the-shelf Whisper Large-v3 evaluation (Kaggle GPU)
 ├── results/
 │   ├── baseline_predictions.csv
 │   ├── finetuned_predictions.csv
+│   ├── largev3_predictions.csv
+│   ├── wer_confidence_intervals.csv
+│   ├── largev3_vs_finetuned.csv
 │   ├── training_log.json
 │   ├── wer_summary.csv
 │   └── wer_before_after.png
@@ -128,7 +152,7 @@ Most of the gain came in the first epoch. Dev loss stopped improving after epoch
 
 ## Reproducing
 
-1. Notebooks 01, 02 and 05 run on a normal laptop. Notebooks 03 and 04 need a GPU; they were run on Kaggle's free T4.
+1. Notebooks 01, 02 and 05 run on a normal laptop. Notebooks 03, 04 and 06 need a GPU; they were run on Kaggle's free T4.
 2. You need a free [Hugging Face](https://huggingface.co) account and access token to download AfriSpeech-200.
 3. The dataset uses a loading script, so it requires `datasets<4.0`.
 
