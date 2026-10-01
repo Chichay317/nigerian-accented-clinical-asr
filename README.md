@@ -4,6 +4,8 @@ Speech recognition works well for American and British English, but much worse f
 
 **Result:** fine-tuning cut the word error rate from **33.1% to 20.7%** (an improvement of 12.5 points, 95% CI 11.2–13.8) on a held-out test set of 1,185 clips from speakers never seen in training. Every accent and domain improved. The fine-tuned model also slightly outperforms the off-the-shelf **Whisper Large-v3**, a model about six times its size (20.7% vs 22.1%). Clinical speech remains harder than general speech.
 
+**Fine-tuned model:** [DivineAngel317/whisper-small-nigerian-accented-english](https://huggingface.co/DivineAngel317/whisper-small-nigerian-accented-english) on Hugging Face
+
 ![Word error rate before and after fine-tuning](results/wer_before_after.png)
 
 ## Why this matters
